@@ -26,7 +26,7 @@ function createApp() {
   );
   app.use(express.json());
 
-  app.get('/api/ping', (req, res) => {
+  app.get('/', (req, res) => {
     res.json({ ok: true, msg: 'pong' });
   });
 
