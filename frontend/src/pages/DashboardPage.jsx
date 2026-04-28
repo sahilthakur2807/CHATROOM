@@ -36,11 +36,22 @@ export default function DashboardPage() {
   const [postForm, setPostForm] = useState({ title: '', content: '' })
   const [postError, setPostError] = useState('')
   const [loadingPosts, setLoadingPosts] = useState(true)
+  const [chatMode, setChatMode] = useState('global')
   const [chatMessages, setChatMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [chatError, setChatError] = useState('')
+  const [postChatMessages, setPostChatMessages] = useState([])
+  const [postChatInput, setPostChatInput] = useState('')
+  const [postChatError, setPostChatError] = useState('')
   const socketRef = useRef(null)
   const chatListRef = useRef(null)
+  const postChatListRef = useRef(null)
+  const joinedPostIdRef = useRef(null)
+  const selectedPostIdRef = useRef(null)
+
+  useEffect(() => {
+    selectedPostIdRef.current = selectedPostId
+  }, [selectedPostId])
 
   const selectedPostIsOwner = useMemo(() => {
     if (!selectedPost || !user) return false
@@ -145,6 +156,28 @@ export default function DashboardPage() {
       })
     })
 
+    socket.on('post:history', (payload) => {
+      const postId = payload && payload.postId ? String(payload.postId) : ''
+      if (!postId || String(postId) !== String(selectedPostIdRef.current)) return
+      setPostChatMessages((payload && payload.messages) || [])
+    })
+
+    socket.on('post:message', (message) => {
+      if (!message || String(message.postId) !== String(selectedPostIdRef.current)) return
+      setPostChatMessages((current) => {
+        if (current.some((entry) => entry.id === message.id)) {
+          return current
+        }
+        return [...current, message]
+      })
+    })
+
+    socket.on('post:error', (payload) => {
+      const postId = payload && payload.postId ? String(payload.postId) : ''
+      if (!postId || String(postId) !== String(selectedPostIdRef.current)) return
+      setPostChatError(payload && payload.message ? String(payload.message) : 'Post chat error')
+    })
+
     socket.on('connect_error', (error) => {
       setChatError(error.message)
     })
@@ -155,12 +188,42 @@ export default function DashboardPage() {
     }
   }, [token, user])
 
+  // Join/leave post chat when selected post changes
+  useEffect(() => {
+    const socket = socketRef.current
+    if (!socket) return
+
+    const previousPostId = joinedPostIdRef.current
+    if (previousPostId && String(previousPostId) !== String(selectedPostId)) {
+      socket.emit('post:leave', { postId: previousPostId })
+      joinedPostIdRef.current = null
+      setPostChatMessages([])
+      setPostChatInput('')
+      setPostChatError('')
+    }
+
+    if (selectedPostId) {
+      socket.emit('post:join', { postId: selectedPostId })
+      joinedPostIdRef.current = selectedPostId
+      setChatMode('post')
+    } else if (chatMode === 'post') {
+      setChatMode('global')
+    }
+  }, [selectedPostId, chatMode])
+
   // Auto-scroll chat
   useEffect(() => {
     if (chatListRef.current) {
       chatListRef.current.scrollTop = chatListRef.current.scrollHeight
     }
   }, [chatMessages])
+
+  // Auto-scroll post chat
+  useEffect(() => {
+    if (postChatListRef.current) {
+      postChatListRef.current.scrollTop = postChatListRef.current.scrollHeight
+    }
+  }, [postChatMessages])
 
   async function handleCreateOrUpdatePost(event) {
     event.preventDefault()
@@ -216,6 +279,16 @@ export default function DashboardPage() {
 
     socketRef.current.emit('global:message', { content })
     setChatInput('')
+  }
+
+  function handleSendPostChatMessage(event) {
+    event.preventDefault()
+
+    const content = postChatInput.trim()
+    if (!content || !socketRef.current || !selectedPostId) return
+
+    socketRef.current.emit('post:message', { postId: selectedPostId, content })
+    setPostChatInput('')
   }
 
   function handleLogout() {
@@ -325,41 +398,121 @@ export default function DashboardPage() {
         </section>
 
         <aside className="w-[30%] flex flex-col bg-white border-l border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-bold text-gray-900">Global Chat</h2>
-            <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded">Live</span>
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-900">{chatMode === 'post' ? 'Post Chat' : 'Global Chat'}</h2>
+              <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded">Live</span>
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setChatMode('global')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+                  chatMode === 'global' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                Global
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedPostId) return
+                  setChatMode('post')
+                }}
+                disabled={!selectedPostId}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+                  !selectedPostId
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : chatMode === 'post'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                Post
+              </button>
+            </div>
+
+            {chatMode === 'post' && selectedPost ? (
+              <p className="mt-3 text-xs text-gray-600">
+                Discussing: <span className="font-semibold">{selectedPost.title}</span>
+              </p>
+            ) : null}
           </div>
 
-          {chatError && <p className="text-red-600 text-sm m-4 bg-red-50 p-3 rounded">{chatError}</p>}
+          {chatMode === 'global' && chatError ? <p className="text-red-600 text-sm m-4 bg-red-50 p-3 rounded">{chatError}</p> : null}
+          {chatMode === 'post' && postChatError ? <p className="text-red-600 text-sm m-4 bg-red-50 p-3 rounded">{postChatError}</p> : null}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={chatListRef}>
-            {chatMessages.length > 0 ? (
-              chatMessages.map((message) => (
-                <div key={message.id} className="bg-gray-50 rounded-lg p-3 border-l-4 border-blue-600">
-                  <div className="flex justify-between items-center gap-2 mb-1">
-                    <strong className="text-sm text-gray-900">{message.senderName}</strong>
-                    <span className="text-xs text-gray-500">{formatDate(message.createdAt)}</span>
-                  </div>
-                  <p className="text-sm text-gray-700 leading-relaxed">{message.content}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 text-sm py-8">No messages yet. Start the conversation!</p>
-            )}
-          </div>
+          {chatMode === 'global' ? (
+            <>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={chatListRef}>
+                {chatMessages.length > 0 ? (
+                  chatMessages.map((message) => (
+                    <div key={message.id} className="bg-gray-50 rounded-lg p-3 border-l-4 border-blue-600">
+                      <div className="flex justify-between items-center gap-2 mb-1">
+                        <strong className="text-sm text-gray-900">{message.senderName}</strong>
+                        <span className="text-xs text-gray-500">{formatDate(message.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{message.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500 text-sm py-8">No messages yet. Start the conversation!</p>
+                )}
+              </div>
 
-          <form onSubmit={handleSendChatMessage} className="p-4 border-t border-gray-200 flex gap-2">
-            <input
-              type="text"
-              placeholder="Write a message..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-sm">
-              Send
-            </button>
-          </form>
+              <form onSubmit={handleSendChatMessage} className="p-4 border-t border-gray-200 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Write a message..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-sm">
+                  Send
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={postChatListRef}>
+                {postChatMessages.length > 0 ? (
+                  postChatMessages.map((message) => (
+                    <div key={message.id} className="bg-gray-50 rounded-lg p-3 border-l-4 border-indigo-600">
+                      <div className="flex justify-between items-center gap-2 mb-1">
+                        <strong className="text-sm text-gray-900">{message.senderName}</strong>
+                        <span className="text-xs text-gray-500">{formatDate(message.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{message.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500 text-sm py-8">
+                    {selectedPostId ? 'No messages yet. Start the discussion!' : 'Select a post to open its chat.'}
+                  </p>
+                )}
+              </div>
+
+              <form onSubmit={handleSendPostChatMessage} className="p-4 border-t border-gray-200 flex gap-2">
+                <input
+                  type="text"
+                  placeholder={selectedPostId ? 'Write a message...' : 'Select a post to chat...'}
+                  value={postChatInput}
+                  onChange={(e) => setPostChatInput(e.target.value)}
+                  disabled={!selectedPostId}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+                <button
+                  type="submit"
+                  disabled={!selectedPostId}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-sm disabled:bg-gray-300"
+                >
+                  Send
+                </button>
+              </form>
+            </>
+          )}
         </aside>
       </main>
     </div>

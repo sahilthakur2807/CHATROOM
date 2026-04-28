@@ -1,32 +1,14 @@
-# Blog + Chat Fullstack
+# Full-Stack Blog + Realtime Chat
 
-Monorepo with `backend` (Express + Socket.IO) and `frontend` (Vite + React).
+This repo contains a full-stack blog platform with authentication, blog post CRUD, and a realtime global chat (Socket.IO) with PostgreSQL persistence.
 
-Getting started (development):
+## Structure
 
-1. Backend
+- `backend/`: Express API + Socket.IO + PostgreSQL
+- `frontend/`: Vite + React UI
+- `docs/README.md`: full setup instructions
 
-```bash
-cd backend
-npm install
-cp .env.example .env
-# edit .env as needed
-npm run dev
-```
+## Quick start
 
-2. Frontend
+Follow the setup guide in `docs/README.md`.
 
-```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
-```
-
-Module 2 and 3 are now in place in the backend:
-
-- PostgreSQL schema for users, posts, and messages lives in `backend/sql/schema.sql`.
-- Database initialization runs from `backend/database/initDatabase.js`.
-- Auth endpoints are available under `/api/auth/signup`, `/api/auth/login`, and `/api/auth/me`.
-
-This repo is organized to implement features module-by-module. Work proceeds only after review of each module.

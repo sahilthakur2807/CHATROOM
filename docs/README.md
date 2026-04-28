@@ -157,6 +157,39 @@ Follow the modules in order:
 11. Testing and debugging
 12. Final integration and cleanup
 
+## Deployment
+
+This project should be deployed as two apps plus one database:
+
+1. Deploy the backend (`backend/`) to a Node host that supports long-lived processes and Socket.IO, such as Render, Railway, Fly.io, or a similar service.
+2. Deploy the frontend (`frontend/`) to a static host such as Vercel or Netlify.
+3. Use a managed PostgreSQL instance such as Neon, Supabase, Render Postgres, or Railway Postgres.
+
+Recommended setup:
+
+- Backend: Render web service or Railway service
+- Frontend: Vercel or Netlify
+- Database: Neon or Supabase PostgreSQL
+
+Environment variables you will need:
+
+- Backend
+  - `DATABASE_URL`: managed Postgres connection string
+  - `JWT_SECRET`: long random secret
+  - `PORT`: usually provided by the host
+  - `CORS_ORIGIN`: your deployed frontend URL, for example `https://your-app.vercel.app`
+- Frontend
+  - `VITE_API_URL`: your deployed backend URL, for example `https://your-api.onrender.com`
+
+Deployment order:
+
+1. Create the PostgreSQL database and copy its connection string into the backend environment.
+2. Deploy the backend and run `npm run db:init` once if your host does not initialize the schema automatically.
+3. Deploy the frontend with `VITE_API_URL` pointed at the backend.
+4. Open the frontend URL and test signup, login, dashboard access, and logout.
+
+For local testing before deployment, the current app now redirects logged-in users away from `/login` and `/signup`, and only shows those pages when there is no saved session token.
+
 ## Notes
 
 - Keep `backend/.env` and `frontend/.env` out of version control.
