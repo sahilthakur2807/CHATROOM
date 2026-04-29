@@ -141,8 +141,47 @@ export default function DashboardPage() {
 
     socket.on('connect', () => {
       socket.emit('global:join')
+      socket.emit('posts:join')
     })
 
+    // Posts events
+    socket.on('posts:history', (posts) => {
+      setPosts(posts || [])
+    })
+
+    socket.on('post:created', (newPost) => {
+      setPosts((current) => {
+        if (current.some((post) => post.id === newPost.id)) {
+          return current
+        }
+        return [newPost, ...current]
+      })
+    })
+
+    socket.on('post:updated', (updatedPost) => {
+      setPosts((current) =>
+        current.map((post) =>
+          String(post.id) === String(updatedPost.id) ? { ...post, ...updatedPost } : post
+        )
+      )
+      // Update selected post if it's the one being updated
+      if (selectedPostId && String(selectedPostId) === String(updatedPost.id)) {
+        setSelectedPost(updatedPost)
+        setPostForm({ title: updatedPost.title, content: updatedPost.content })
+      }
+    })
+
+    socket.on('post:deleted', (payload) => {
+      setPosts((current) => current.filter((post) => String(post.id) !== String(payload.postId)))
+      // Deselect if the deleted post was selected
+      if (selectedPostId && String(selectedPostId) === String(payload.postId)) {
+        setSelectedPostId(null)
+        setSelectedPost(null)
+        setPostForm({ title: '', content: '' })
+      }
+    })
+
+    // Global chat events
     socket.on('global:history', (messages) => {
       setChatMessages(messages || [])
     })

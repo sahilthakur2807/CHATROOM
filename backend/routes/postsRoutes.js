@@ -8,8 +8,6 @@ const {
   deletePost,
 } = require('../services/postService');
 
-const router = express.Router();
-
 function normalizePostPayload(body) {
   return {
     title: String(body.title || '').trim(),
@@ -17,89 +15,110 @@ function normalizePostPayload(body) {
   };
 }
 
-router.get('/', async (req, res) => {
-  try {
-    const posts = await listPosts();
-    return res.json({ ok: true, posts });
-  } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Unable to load posts' });
-  }
-});
+function createPostsRoutes(io) {
+  const router = express.Router();
 
-router.get('/:postId', async (req, res) => {
-  try {
-    const post = await getPostById(req.params.postId);
-
-    if (!post) {
-      return res.status(404).json({ ok: false, message: 'Post not found' });
+  router.get('/', async (req, res) => {
+    try {
+      const posts = await listPosts();
+      return res.json({ ok: true, posts });
+    } catch (error) {
+      return res.status(500).json({ ok: false, message: 'Unable to load posts' });
     }
+  });
 
-    return res.json({ ok: true, post });
-  } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Unable to load post' });
-  }
-});
+  router.get('/:postId', async (req, res) => {
+    try {
+      const post = await getPostById(req.params.postId);
 
-router.post('/', requireAuth, async (req, res) => {
-  try {
-    const { title, content } = normalizePostPayload(req.body);
+      if (!post) {
+        return res.status(404).json({ ok: false, message: 'Post not found' });
+      }
 
-    if (!title || !content) {
-      return res.status(400).json({ ok: false, message: 'title and content are required' });
+      return res.json({ ok: true, post });
+    } catch (error) {
+      return res.status(500).json({ ok: false, message: 'Unable to load post' });
     }
+  });
 
-    const post = await createPost({
-      userId: req.user.sub,
-      title,
-      content,
-    });
+  router.post('/', requireAuth, async (req, res) => {
+    try {
+      const { title, content } = normalizePostPayload(req.body);
 
-    return res.status(201).json({ ok: true, post });
-  } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Unable to create post' });
-  }
-});
+      if (!title || !content) {
+        return res.status(400).json({ ok: false, message: 'title and content are required' });
+      }
 
-router.put('/:postId', requireAuth, async (req, res) => {
-  try {
-    const { title, content } = normalizePostPayload(req.body);
+      const post = await createPost({
+        userId: req.user.sub,
+        title,
+        content,
+      });
 
-    if (!title || !content) {
-      return res.status(400).json({ ok: false, message: 'title and content are required' });
+      // Emit post creation event to all connected clients
+      if (io) {
+        io.to('posts').emit('post:created', post);
+      }
+
+      return res.status(201).json({ ok: true, post });
+    } catch (error) {
+      return res.status(500).json({ ok: false, message: 'Unable to create post' });
     }
+  });
 
-    const post = await updatePost({
-      postId: req.params.postId,
-      userId: req.user.sub,
-      title,
-      content,
-    });
+  router.put('/:postId', requireAuth, async (req, res) => {
+    try {
+      const { title, content } = normalizePostPayload(req.body);
 
-    if (!post) {
-      return res.status(404).json({ ok: false, message: 'Post not found or not owned by user' });
+      if (!title || !content) {
+        return res.status(400).json({ ok: false, message: 'title and content are required' });
+      }
+
+      const post = await updatePost({
+        postId: req.params.postId,
+        userId: req.user.sub,
+        title,
+        content,
+      });
+
+      if (!post) {
+        return res.status(404).json({ ok: false, message: 'Post not found or not owned by user' });
+      }
+
+      // Emit post update event to all connected clients
+      if (io) {
+        io.to('posts').emit('post:updated', post);
+      }
+
+      return res.json({ ok: true, post });
+    } catch (error) {
+      return res.status(500).json({ ok: false, message: 'Unable to update post' });
     }
+  });
 
-    return res.json({ ok: true, post });
-  } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Unable to update post' });
-  }
-});
+  router.delete('/:postId', requireAuth, async (req, res) => {
+    try {
+      const deleted = await deletePost({
+        postId: req.params.postId,
+        userId: req.user.sub,
+      });
 
-router.delete('/:postId', requireAuth, async (req, res) => {
-  try {
-    const deleted = await deletePost({
-      postId: req.params.postId,
-      userId: req.user.sub,
-    });
+      if (!deleted) {
+        return res.status(404).json({ ok: false, message: 'Post not found or not owned by user' });
+      }
 
-    if (!deleted) {
-      return res.status(404).json({ ok: false, message: 'Post not found or not owned by user' });
+      // Emit post deletion event to all connected clients
+      if (io) {
+        io.to('posts').emit('post:deleted', { postId: req.params.postId });
+      }
+
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(500).json({ ok: false, message: 'Unable to delete post' });
     }
+  });
 
-    return res.json({ ok: true });
-  } catch (error) {
-    return res.status(500).json({ ok: false, message: 'Unable to delete post' });
-  }
-});
+  return router;
+}
 
-module.exports = { postsRoutes: router };
+module.exports = { createPostsRoutes };

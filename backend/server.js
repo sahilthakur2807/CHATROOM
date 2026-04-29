@@ -4,9 +4,9 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-const { authRoutes } = require('./routes/authRoutes');
-const { postsRoutes } = require('./routes/postsRoutes');
-const { chatRoutes } = require('./routes/chatRoutes');
+const { createAuthRoutes } = require('./routes/authRoutes');
+const { createPostsRoutes } = require('./routes/postsRoutes');
+const { createChatRoutes } = require('./routes/chatRoutes');
 const { initializeDatabase } = require('./database/initDatabase');
 const {
   createGlobalMessage,
@@ -15,8 +15,9 @@ const {
   listPostMessages,
   postExists,
 } = require('./services/chatService');
+const { listPosts } = require('./services/postService');
 
-function createApp() {
+function createApp(io) {
   const app = express();
 
   app.use(
@@ -30,9 +31,10 @@ function createApp() {
     res.json({ ok: true, msg: 'pong' });
   });
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/posts', postsRoutes);
-  app.use('/api/chat', chatRoutes);
+  // Routes with io instance
+  app.use('/api/auth', createAuthRoutes());
+  app.use('/api/posts', createPostsRoutes(io));
+  app.use('/api/chat', createChatRoutes());
 
   return app;
 }
@@ -48,13 +50,16 @@ async function startServer() {
 
   await initializeDatabase();
 
-  const app = createApp();
-  const server = http.createServer(app);
+  const server = http.createServer();
   const io = new Server(server, {
     cors: {
       origin: process.env.CORS_ORIGIN || '*',
     },
   });
+
+  // Create app with io instance
+  const app = createApp(io);
+  server.on('request', app);
 
   io.use((socket, next) => {
     try {
@@ -80,6 +85,14 @@ async function startServer() {
   io.on('connection', (socket) => {
     console.log('socket connected', socket.id);
 
+    // Posts list
+    socket.on('posts:join', async () => {
+      socket.join('posts');
+      const posts = await listPosts();
+      socket.emit('posts:history', posts || []);
+    });
+
+    // Global chat
     socket.on('global:join', async () => {
       const messages = await listGlobalMessages();
       socket.join('global');
@@ -101,6 +114,7 @@ async function startServer() {
       io.to('global').emit('global:message', message);
     });
 
+    // Post-specific chat
     socket.on('post:join', async (payload) => {
       const postId = String(payload && payload.postId ? payload.postId : '').trim();
       if (!postId) return;
