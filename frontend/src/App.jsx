@@ -3,31 +3,38 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import DashboardPage from './pages/DashboardPage'
+import { AppProviders, useAuth } from './context/AppProviders'
 
-function PrivateRoute({ element }) {
-  const token = localStorage.getItem('blog_token')
-  return token ? element : <Navigate to="/login" replace />
+function AppLoading() {
+  return <div className="app-shell flex items-center justify-center min-h-screen text-sm text-[var(--app-text-muted)]">Loading...</div>
 }
 
-function PublicRoute({ element }) {
-  const token = localStorage.getItem('blog_token')
-  return token ? <Navigate to="/dashboard" replace /> : element
+function AppRoutes() {
+  const { isAuthenticated, isReady } = useAuth()
+
+  if (!isReady) {
+    return <AppLoading />
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/signup" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <SignupPage />} />
+      <Route path="/dashboard" element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+    </Routes>
+  )
 }
 
 function App() {
-  const token = localStorage.getItem('blog_token')
-
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<PublicRoute element={<LoginPage />} />} />
-        <Route path="/signup" element={<PublicRoute element={<SignupPage />} />} />
-        <Route path="/dashboard" element={<PrivateRoute element={<DashboardPage />} />} />
-        <Route path="/" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
-      </Routes>
-    </BrowserRouter>
+    <AppProviders>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AppProviders>
   )
 }
 
 export default App
-

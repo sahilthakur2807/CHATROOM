@@ -1,12 +1,26 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
+import { ThemeToggleButton, useAuth } from '../context/AppProviders'
 
 const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 function formatDate(value) {
   if (!value) return 'Just now'
   return new Date(value).toLocaleString()
+}
+
+const messageBorderPalette = ['#38bdf8', '#f97316', '#22c55e', '#eab308', '#a78bfa', '#fb7185', '#14b8a6', '#f43f5e']
+
+function pickMessageBorderColor(message) {
+  const seed = String(message?.senderId ?? message?.userId ?? message?.senderName ?? 'chat-user')
+
+  let hash = 0
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
+  }
+
+  return messageBorderPalette[hash % messageBorderPalette.length]
 }
 
 async function apiFetch(path, options = {}, token) {
@@ -28,8 +42,7 @@ async function apiFetch(path, options = {}, token) {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
+  const { user, token, signOut, isReady } = useAuth()
   const [posts, setPosts] = useState([])
   const [selectedPostId, setSelectedPostId] = useState(null)
   const [selectedPost, setSelectedPost] = useState(null)
@@ -57,24 +70,6 @@ export default function DashboardPage() {
     if (!selectedPost || !user) return false
     return String(selectedPost.userId) === String(user.id)
   }, [selectedPost, user])
-
-  // Initialize auth
-  useEffect(() => {
-    const storedToken = localStorage.getItem('blog_token')
-    const storedUser = localStorage.getItem('blog_user')
-
-    if (!storedToken || !storedUser) {
-      navigate('/login')
-      return
-    }
-
-    setToken(storedToken)
-    try {
-      setUser(JSON.parse(storedUser))
-    } catch {
-      navigate('/login')
-    }
-  }, [navigate])
 
   // Load posts
   useEffect(() => {
@@ -331,45 +326,48 @@ export default function DashboardPage() {
   }
 
   function handleLogout() {
-    localStorage.removeItem('blog_token')
-    localStorage.removeItem('blog_user')
+    signOut()
     navigate('/login')
   }
 
-  if (!user || !token) {
-    return <div className="flex items-center justify-center h-screen text-gray-600">Loading...</div>
+  if (!isReady || !user || !token) {
+    return <div className="app-shell flex items-center justify-center min-h-screen text-sm text-[var(--app-text-muted)]">Loading...</div>
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200 p-6 shadow-sm">
+    <div className="app-shell flex flex-col min-h-screen">
+      <header className="app-panel-solid border-b border-[var(--app-border)] p-5 md:p-6 sticky top-0 z-20">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Blog Platform</h1>
-            <p className="text-gray-600 text-sm mt-1">Write, share, and connect in real time</p>
+            <p className="app-muted text-xs font-semibold uppercase tracking-[0.32em] mb-2">ChatRoom</p>
+            <h1 className="text-2xl font-bold app-heading">Blog Platform</h1>
+            <p className="app-muted text-sm mt-1">Write, share, and connect in real time</p>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-700">Logged in as <span className="font-semibold">{user.name}</span></span>
-            <button onClick={handleLogout} className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">
+            <span className="text-sm app-muted hidden sm:block">
+              Logged in as <span className="font-semibold app-heading">{user.name}</span>
+            </span>
+            <ThemeToggleButton />
+            <button onClick={handleLogout} className="app-button-danger px-4 py-2 rounded-xl font-semibold transition">
               Log out
             </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 flex gap-0 w-full overflow-hidden">
-        <section className="w-[70%] flex flex-col gap-6 overflow-y-auto p-6 border-r border-gray-200">
+      <main className="flex-1 flex gap-0 w-full overflow-hidden flex-col lg:flex-row">
+        <section className="w-full lg:w-[70%] flex flex-col gap-6 overflow-y-auto p-4 md:p-6 border-r border-[var(--app-border)]">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900">{selectedPost ? 'View & Edit Post' : 'Blog Posts'}</h2>
+            <h2 className="text-xl font-bold app-heading">{selectedPost ? 'View & Edit Post' : 'Blog Posts'}</h2>
             {selectedPost && (
-              <button onClick={() => setSelectedPostId(null)} className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm">
+              <button onClick={() => setSelectedPostId(null)} className="app-button-secondary px-3 py-2 rounded-xl transition text-sm">
                 ← Back to posts
               </button>
             )}
           </div>
 
           {loadingPosts ? (
-            <p className="text-gray-600">Loading posts...</p>
+            <p className="app-muted">Loading posts...</p>
           ) : !selectedPost ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {posts.length > 0 ? (
@@ -377,33 +375,33 @@ export default function DashboardPage() {
                   <div
                     key={post.id}
                     onClick={() => setSelectedPostId(post.id)}
-                    className="bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition transform"
+                    className="app-panel rounded-2xl p-4 cursor-pointer hover:-translate-y-1 transition transform"
                   >
                     <div className="flex justify-between items-start gap-3 mb-2">
-                      <h3 className="font-semibold text-gray-900">{post.title}</h3>
-                      <small className="text-gray-500 whitespace-nowrap text-xs">{formatDate(post.createdAt)}</small>
+                      <h3 className="font-semibold app-heading">{post.title}</h3>
+                      <small className="app-muted whitespace-nowrap text-xs">{formatDate(post.createdAt)}</small>
                     </div>
-                    <p className="text-gray-700 text-sm line-clamp-2 mb-2">{post.content.substring(0, 100)}...</p>
-                    <p className="text-gray-600 text-xs">by {post.authorName}</p>
+                    <p className="app-muted text-sm line-clamp-2 mb-2">{post.content.substring(0, 100)}...</p>
+                    <p className="app-muted text-xs">by {post.authorName}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-gray-600 col-span-full text-center py-8">No posts yet. Create one!</p>
+                <p className="app-muted col-span-full text-center py-8">No posts yet. Create one!</p>
               )}
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <div className="flex justify-between items-start gap-4 mb-6 pb-6 border-b border-gray-200">
+            <div className="app-panel rounded-3xl p-6">
+              <div className="flex justify-between items-start gap-4 mb-6 pb-6 border-b border-[var(--app-border)]">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">By {selectedPost.authorName}</p>
-                  <h3 className="text-2xl font-bold text-gray-900">{selectedPost.title}</h3>
+                  <p className="app-muted text-xs font-semibold uppercase tracking-wider mb-1">By {selectedPost.authorName}</p>
+                  <h3 className="text-2xl font-bold app-heading">{selectedPost.title}</h3>
                 </div>
-                <span className="text-xs text-gray-500 whitespace-nowrap">{formatDate(selectedPost.createdAt)}</span>
+                <span className="app-muted text-xs whitespace-nowrap">{formatDate(selectedPost.createdAt)}</span>
               </div>
-              <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap mb-6">{selectedPost.content}</div>
+              <div className="app-heading text-sm leading-relaxed whitespace-pre-wrap mb-6">{selectedPost.content}</div>
               {selectedPostIsOwner && (
                 <div className="flex gap-2">
-                  <button onClick={handleDeletePost} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition font-semibold">
+                  <button onClick={handleDeletePost} className="app-button-danger px-4 py-2 rounded-xl transition font-semibold">
                     Delete post
                   </button>
                 </div>
@@ -411,36 +409,36 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">{selectedPost ? 'Edit Post' : 'Create New Post'}</h3>
+          <div className="app-panel rounded-3xl p-6">
+            <h3 className="text-lg font-bold app-heading mb-4">{selectedPost ? 'Edit Post' : 'Create New Post'}</h3>
             <form onSubmit={handleCreateOrUpdatePost} className="space-y-4">
               <input
                 type="text"
                 placeholder="Post title"
                 value={postForm.title}
                 onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="app-input"
               />
               <textarea
                 rows="6"
                 placeholder="Post content"
                 value={postForm.content}
                 onChange={(e) => setPostForm({ ...postForm, content: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="app-input resize-none"
               />
-              <button type="submit" className="w-full py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">
+              <button type="submit" className="app-button-primary w-full py-3 rounded-xl font-semibold transition">
                 {selectedPost ? 'Update Post' : 'Publish Post'}
               </button>
             </form>
-            {postError && <p className="text-red-600 text-sm mt-4 bg-red-50 p-3 rounded">{postError}</p>}
+            {postError && <p className="app-error text-sm mt-4 p-3 rounded-xl">{postError}</p>}
           </div>
         </section>
 
-        <aside className="w-[30%] flex flex-col bg-white border-l border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
+        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--app-border)]">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold text-gray-900">{chatMode === 'post' ? 'Post Chat' : 'Global Chat'}</h2>
-              <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded">Live</span>
+              <h2 className="text-lg font-bold app-heading">{chatMode === 'post' ? 'Post Chat' : 'Global Chat'}</h2>
+              <span className="app-chip px-2 py-1 rounded-full">Live</span>
             </div>
 
             <div className="mt-3 flex gap-2">
@@ -448,7 +446,7 @@ export default function DashboardPage() {
                 type="button"
                 onClick={() => setChatMode('global')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition ${
-                  chatMode === 'global' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  chatMode === 'global' ? 'app-button-primary border-transparent' : 'app-button-secondary border-[var(--app-border)]'
                 }`}
               >
                 Global
@@ -462,10 +460,10 @@ export default function DashboardPage() {
                 disabled={!selectedPostId}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition ${
                   !selectedPostId
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    ? 'bg-[color:color-mix(in_srgb,var(--app-surface-solid)_70%,transparent)] text-[var(--app-text-muted)] border-[var(--app-border)] cursor-not-allowed'
                     : chatMode === 'post'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      ? 'app-button-primary border-transparent'
+                      : 'app-button-secondary border-[var(--app-border)]'
                 }`}
               >
                 Post
@@ -473,42 +471,46 @@ export default function DashboardPage() {
             </div>
 
             {chatMode === 'post' && selectedPost ? (
-              <p className="mt-3 text-xs text-gray-600">
+              <p className="mt-3 text-xs app-muted">
                 Discussing: <span className="font-semibold">{selectedPost.title}</span>
               </p>
             ) : null}
           </div>
 
-          {chatMode === 'global' && chatError ? <p className="text-red-600 text-sm m-4 bg-red-50 p-3 rounded">{chatError}</p> : null}
-          {chatMode === 'post' && postChatError ? <p className="text-red-600 text-sm m-4 bg-red-50 p-3 rounded">{postChatError}</p> : null}
+          {chatMode === 'global' && chatError ? <p className="app-error text-sm m-4 p-3 rounded-xl">{chatError}</p> : null}
+          {chatMode === 'post' && postChatError ? <p className="app-error text-sm m-4 p-3 rounded-xl">{postChatError}</p> : null}
 
           {chatMode === 'global' ? (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={chatListRef}>
                 {chatMessages.length > 0 ? (
                   chatMessages.map((message) => (
-                    <div key={message.id} className="bg-gray-50 rounded-lg p-3 border-l-4 border-blue-600">
+                    <div
+                      key={message.id}
+                      className="app-panel rounded-2xl p-3 border-l-4"
+                      style={{ borderLeftColor: pickMessageBorderColor(message) }}
+                    >
                       <div className="flex justify-between items-center gap-2 mb-1">
-                        <strong className="text-sm text-gray-900">{message.senderName}</strong>
-                        <span className="text-xs text-gray-500">{formatDate(message.createdAt)}</span>
+                        <strong className="text-sm app-heading">{message.senderName}</strong>
+                        <span className="app-muted text-xs">{formatDate(message.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">{message.content}</p>
+                      <p className="text-sm app-heading leading-relaxed">{message.content}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-center text-gray-500 text-sm py-8">No messages yet. Start the conversation!</p>
+                  <p className="text-center app-muted text-sm py-8">No messages yet. Start the conversation!</p>
                 )}
               </div>
 
-              <form onSubmit={handleSendChatMessage} className="p-4 border-t border-gray-200 flex gap-2">
+              <form onSubmit={handleSendChatMessage} className="p-4 border-t border-[var(--app-border)] flex gap-2">
                 <input
                   type="text"
                   placeholder="Write a message..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="app-input flex-1"
                 />
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-sm">
+                <button type="submit" className="app-button-primary px-4 py-2 rounded-xl font-semibold transition text-sm">
                   Send
                 </button>
               </form>
@@ -518,34 +520,38 @@ export default function DashboardPage() {
               <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={postChatListRef}>
                 {postChatMessages.length > 0 ? (
                   postChatMessages.map((message) => (
-                    <div key={message.id} className="bg-gray-50 rounded-lg p-3 border-l-4 border-indigo-600">
+                    <div
+                      key={message.id}
+                      className="app-panel rounded-2xl p-3 border-l-4"
+                      style={{ borderLeftColor: pickMessageBorderColor(message) }}
+                    >
                       <div className="flex justify-between items-center gap-2 mb-1">
-                        <strong className="text-sm text-gray-900">{message.senderName}</strong>
-                        <span className="text-xs text-gray-500">{formatDate(message.createdAt)}</span>
+                        <strong className="text-sm app-heading">{message.senderName}</strong>
+                        <span className="app-muted text-xs">{formatDate(message.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">{message.content}</p>
+                      <p className="text-sm app-heading leading-relaxed">{message.content}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-center text-gray-500 text-sm py-8">
+                  <p className="text-center app-muted text-sm py-8">
                     {selectedPostId ? 'No messages yet. Start the discussion!' : 'Select a post to open its chat.'}
                   </p>
                 )}
               </div>
 
-              <form onSubmit={handleSendPostChatMessage} className="p-4 border-t border-gray-200 flex gap-2">
+              <form onSubmit={handleSendPostChatMessage} className="p-4 border-t border-[var(--app-border)] flex gap-2">
                 <input
                   type="text"
                   placeholder={selectedPostId ? 'Write a message...' : 'Select a post to chat...'}
                   value={postChatInput}
                   onChange={(e) => setPostChatInput(e.target.value)}
                   disabled={!selectedPostId}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="app-input flex-1 disabled:opacity-60"
                 />
                 <button
                   type="submit"
                   disabled={!selectedPostId}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-sm disabled:bg-gray-300"
+                  className="app-button-primary px-4 py-2 rounded-xl font-semibold transition text-sm disabled:opacity-50"
                 >
                   Send
                 </button>
