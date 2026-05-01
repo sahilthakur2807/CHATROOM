@@ -1,21 +1,40 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
+import DashboardPage from './pages/DashboardPage'
+import { AppProviders, useAuth } from './context/AppProviders'
 
-export default function App() {
-  const [ping, setPing] = useState(null)
+function AppLoading() {
+  return <div className="app-shell flex items-center justify-center min-h-screen text-sm text-[var(--app-text-muted)]">Loading...</div>
+}
 
-  useEffect(() => {
-    const api = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    fetch(`${api}/api/ping`)
-      .then((r) => r.json())
-      .then(setPing)
-      .catch((e) => setPing({ ok: false, error: e.message }))
-  }, [])
+function AppRoutes() {
+  const { isAuthenticated, isReady } = useAuth()
+
+  if (!isReady) {
+    return <AppLoading />
+  }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Blog Frontend</h1>
-      <p>Minimal Vite + React scaffold for Module 1.</p>
-      <pre>{JSON.stringify(ping, null, 2)}</pre>
-    </div>
+    <Routes>
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/signup" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <SignupPage />} />
+      <Route path="/dashboard" element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+    </Routes>
   )
 }
+
+function App() {
+  return (
+    <AppProviders>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AppProviders>
+  )
+}
+
+export default App
