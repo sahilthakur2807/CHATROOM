@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
 import { ThemeToggleButton, useAuth } from '../context/AppProviders'
@@ -61,6 +61,8 @@ export default function DashboardPage() {
   const postChatListRef = useRef(null)
   const joinedPostIdRef = useRef(null)
   const selectedPostIdRef = useRef(null)
+  const chatIsAtBottomRef = useRef(true)
+  const postChatIsAtBottomRef = useRef(true)
 
   useEffect(() => {
     selectedPostIdRef.current = selectedPostId
@@ -160,7 +162,7 @@ export default function DashboardPage() {
         )
       )
       // Update selected post if it's the one being updated
-      if (selectedPostId && String(selectedPostId) === String(updatedPost.id)) {
+      if (selectedPostIdRef.current && String(selectedPostIdRef.current) === String(updatedPost.id)) {
         setSelectedPost(updatedPost)
         setPostForm({ title: updatedPost.title, content: updatedPost.content })
       }
@@ -169,16 +171,17 @@ export default function DashboardPage() {
     socket.on('post:deleted', (payload) => {
       setPosts((current) => current.filter((post) => String(post.id) !== String(payload.postId)))
       // Deselect if the deleted post was selected
-      if (selectedPostId && String(selectedPostId) === String(payload.postId)) {
+      if (selectedPostIdRef.current && String(selectedPostIdRef.current) === String(payload.postId)) {
         setSelectedPostId(null)
         setSelectedPost(null)
         setPostForm({ title: '', content: '' })
+        setChatMode('global')
       }
     })
 
     // Global chat events
     socket.on('global:history', (messages) => {
-      setChatMessages(messages || [])
+      setChatMessages((messages || []).slice(-10))
     })
 
     socket.on('global:message', (message) => {
@@ -186,14 +189,14 @@ export default function DashboardPage() {
         if (current.some((entry) => entry.id === message.id)) {
           return current
         }
-        return [...current, message]
+        return [...current, message].slice(-10)
       })
     })
 
     socket.on('post:history', (payload) => {
       const postId = payload && payload.postId ? String(payload.postId) : ''
       if (!postId || String(postId) !== String(selectedPostIdRef.current)) return
-      setPostChatMessages((payload && payload.messages) || [])
+      setPostChatMessages(((payload && payload.messages) || []).slice(-10))
     })
 
     socket.on('post:message', (message) => {
@@ -202,7 +205,7 @@ export default function DashboardPage() {
         if (current.some((entry) => entry.id === message.id)) {
           return current
         }
-        return [...current, message]
+        return [...current, message].slice(-10)
       })
     })
 
@@ -239,25 +242,30 @@ export default function DashboardPage() {
     if (selectedPostId) {
       socket.emit('post:join', { postId: selectedPostId })
       joinedPostIdRef.current = selectedPostId
-      setChatMode('post')
-    } else if (chatMode === 'post') {
-      setChatMode('global')
     }
-  }, [selectedPostId, chatMode])
+  }, [selectedPostId])
 
   // Auto-scroll chat
   useEffect(() => {
-    if (chatListRef.current) {
+    if (chatListRef.current && chatIsAtBottomRef.current) {
       chatListRef.current.scrollTop = chatListRef.current.scrollHeight
     }
   }, [chatMessages])
 
   // Auto-scroll post chat
   useEffect(() => {
-    if (postChatListRef.current) {
+    if (postChatListRef.current && postChatIsAtBottomRef.current) {
       postChatListRef.current.scrollTop = postChatListRef.current.scrollHeight
     }
   }, [postChatMessages])
+
+  function handleChatScroll(listRef, bottomRef) {
+    const element = listRef.current
+    if (!element) return
+
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight
+    bottomRef.current = distanceFromBottom < 24
+  }
 
   async function handleCreateOrUpdatePost(event) {
     event.preventDefault()
@@ -285,6 +293,7 @@ export default function DashboardPage() {
       setPosts(nextPosts)
       setSelectedPost(savedPost)
       setSelectedPostId(savedPost.id)
+      setChatMode('post')
       setPostError('')
     } catch (error) {
       setPostError(error.message)
@@ -300,6 +309,7 @@ export default function DashboardPage() {
       setSelectedPostId(null)
       setSelectedPost(null)
       setPostForm({ title: '', content: '' })
+      setChatMode('global')
     } catch (error) {
       setPostError(error.message)
     }
@@ -360,7 +370,13 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold app-heading">{selectedPost ? 'View & Edit Post' : 'Blog Posts'}</h2>
             {selectedPost && (
-              <button onClick={() => setSelectedPostId(null)} className="app-button-secondary px-3 py-2 rounded-xl transition text-sm">
+              <button
+                onClick={() => {
+                  setSelectedPostId(null)
+                  setChatMode('global')
+                }}
+                className="app-button-secondary px-3 py-2 rounded-xl transition text-sm"
+              >
                 ← Back to posts
               </button>
             )}
@@ -374,7 +390,10 @@ export default function DashboardPage() {
                 posts.map((post) => (
                   <div
                     key={post.id}
-                    onClick={() => setSelectedPostId(post.id)}
+                    onClick={() => {
+                      setSelectedPostId(post.id)
+                      setChatMode('post')
+                    }}
                     className="app-panel rounded-2xl p-4 cursor-pointer hover:-translate-y-1 transition transform"
                   >
                     <div className="flex justify-between items-start gap-3 mb-2">
@@ -434,7 +453,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden">
+        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden min-h-0">
           <div className="p-4 border-b border-[var(--app-border)]">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold app-heading">{chatMode === 'post' ? 'Post Chat' : 'Global Chat'}</h2>
@@ -482,7 +501,11 @@ export default function DashboardPage() {
 
           {chatMode === 'global' ? (
             <>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={chatListRef}>
+              <div
+                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+                ref={chatListRef}
+                onScroll={() => handleChatScroll(chatListRef, chatIsAtBottomRef)}
+              >
                 {chatMessages.length > 0 ? (
                   chatMessages.map((message) => (
                     <div
@@ -517,7 +540,11 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={postChatListRef}>
+              <div
+                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+                ref={postChatListRef}
+                onScroll={() => handleChatScroll(postChatListRef, postChatIsAtBottomRef)}
+              >
                 {postChatMessages.length > 0 ? (
                   postChatMessages.map((message) => (
                     <div

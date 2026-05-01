@@ -11,6 +11,7 @@ const { initializeDatabase } = require('./database/initDatabase');
 const {
   createGlobalMessage,
   listGlobalMessages,
+  cleanupExpiredGlobalMessages,
   createPostMessage,
   listPostMessages,
   postExists,
@@ -49,6 +50,7 @@ async function startServer() {
   }
 
   await initializeDatabase();
+  await cleanupExpiredGlobalMessages();
 
   const server = http.createServer();
   const io = new Server(server, {
@@ -56,6 +58,13 @@ async function startServer() {
       origin: process.env.CORS_ORIGIN || '*',
     },
   });
+
+  const cleanupInterval = setInterval(() => {
+    cleanupExpiredGlobalMessages().catch((error) => {
+      console.error('Failed to clean up expired global messages', error.message);
+    });
+  }, 60 * 1000);
+  cleanupInterval.unref?.();
 
   // Create app with io instance
   const app = createApp(io);
@@ -94,6 +103,7 @@ async function startServer() {
 
     // Global chat
     socket.on('global:join', async () => {
+      await cleanupExpiredGlobalMessages();
       const messages = await listGlobalMessages();
       socket.join('global');
       socket.emit('global:history', messages);
@@ -163,6 +173,10 @@ async function startServer() {
 
   const PORT = process.env.PORT || 4000;
   server.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+
+  server.on('close', () => {
+    clearInterval(cleanupInterval);
+  });
 
   return { app, server, io };
 }

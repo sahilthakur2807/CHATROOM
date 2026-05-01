@@ -32,3 +32,4 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_post_id ON messages(post_id);
 CREATE INDEX IF NOT EXISTS idx_messages_room_type ON messages(room_type);
+CREATE INDEX IF NOT EXISTS idx_messages_room_type_created_at ON messages(room_type, created_at);

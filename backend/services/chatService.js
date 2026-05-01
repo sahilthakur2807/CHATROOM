@@ -1,5 +1,8 @@
 const { query } = require('../db');
 
+const CHAT_HISTORY_LIMIT = 10;
+const GLOBAL_MESSAGE_TTL_MINUTES = 15;
+
 function mapMessage(row) {
   return {
     id: row.id,
@@ -13,7 +16,7 @@ function mapMessage(row) {
   };
 }
 
-async function listGlobalMessages(limit = 50) {
+async function listGlobalMessages(limit = CHAT_HISTORY_LIMIT) {
   const result = await query(
     `SELECT
        messages.id,
@@ -27,6 +30,7 @@ async function listGlobalMessages(limit = 50) {
      FROM messages
      LEFT JOIN users ON users.id = messages.user_id
      WHERE messages.room_type = 'global'
+       AND messages.created_at >= NOW() - INTERVAL '${GLOBAL_MESSAGE_TTL_MINUTES} minutes'
      ORDER BY messages.created_at DESC
      LIMIT $1`,
     [limit]
@@ -60,12 +64,20 @@ async function createGlobalMessage({ userId, content }) {
   };
 }
 
+async function cleanupExpiredGlobalMessages() {
+  await query(
+    `DELETE FROM messages
+     WHERE room_type = 'global'
+       AND created_at < NOW() - INTERVAL '${GLOBAL_MESSAGE_TTL_MINUTES} minutes'`
+  );
+}
+
 async function postExists(postId) {
   const result = await query('SELECT id FROM posts WHERE id = $1', [postId]);
   return result.rowCount > 0;
 }
 
-async function listPostMessages({ postId, limit = 50 }) {
+async function listPostMessages({ postId, limit = CHAT_HISTORY_LIMIT }) {
   const result = await query(
     `SELECT
        messages.id,
@@ -115,6 +127,7 @@ async function createPostMessage({ userId, postId, content }) {
 module.exports = {
   listGlobalMessages,
   createGlobalMessage,
+  cleanupExpiredGlobalMessages,
   postExists,
   listPostMessages,
   createPostMessage,
