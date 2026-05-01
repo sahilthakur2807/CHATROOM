@@ -365,8 +365,8 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex gap-0 w-full overflow-hidden flex-col lg:flex-row">
-        <section className="w-full lg:w-[70%] flex flex-col gap-6 overflow-y-auto p-4 md:p-6 border-r border-[var(--app-border)]">
+      <main className="flex-1 flex gap-0 w-full overflow-hidden flex-col lg:flex-row min-h-0 lg:h-[calc(100vh-8rem)]">
+        <section className="w-full lg:w-[70%] flex flex-col gap-6 overflow-y-auto p-4 md:p-6 border-r border-[var(--app-border)] min-h-0">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold app-heading">{selectedPost ? 'View & Edit Post' : 'Blog Posts'}</h2>
             {selectedPost && (
@@ -453,7 +453,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden min-h-0">
+        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden min-h-0 lg:h-full">
           <div className="p-4 border-b border-[var(--app-border)]">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold app-heading">{chatMode === 'post' ? 'Post Chat' : 'Global Chat'}</h2>
