@@ -510,14 +510,14 @@ export default function DashboardPage() {
                   chatMessages.map((message) => (
                     <div
                       key={message.id}
-                      className="app-panel rounded-2xl p-3 border-l-4"
+                      className="app-panel rounded-2xl p-3 border-l-4 max-h-44 overflow-y-auto"
                       style={{ borderLeftColor: pickMessageBorderColor(message) }}
                     >
                       <div className="flex justify-between items-center gap-2 mb-1">
                         <strong className="text-sm app-heading">{message.senderName}</strong>
                         <span className="app-muted text-xs">{formatDate(message.createdAt)}</span>
                       </div>
-                      <p className="text-sm app-heading leading-relaxed">{message.content}</p>
+                      <p className="text-sm app-heading leading-relaxed break-words whitespace-pre-wrap">{message.content}</p>
                     </div>
                   ))
                 ) : (
@@ -549,14 +549,14 @@ export default function DashboardPage() {
                   postChatMessages.map((message) => (
                     <div
                       key={message.id}
-                      className="app-panel rounded-2xl p-3 border-l-4"
+                      className="app-panel rounded-2xl p-3 border-l-4 max-h-44 overflow-y-auto"
                       style={{ borderLeftColor: pickMessageBorderColor(message) }}
                     >
                       <div className="flex justify-between items-center gap-2 mb-1">
                         <strong className="text-sm app-heading">{message.senderName}</strong>
                         <span className="app-muted text-xs">{formatDate(message.createdAt)}</span>
                       </div>
-                      <p className="text-sm app-heading leading-relaxed">{message.content}</p>
+                      <p className="text-sm app-heading leading-relaxed break-words whitespace-pre-wrap">{message.content}</p>
                     </div>
                   ))
                 ) : (

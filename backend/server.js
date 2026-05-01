@@ -16,7 +16,7 @@ const {
   listPostMessages,
   postExists,
 } = require('./services/chatService');
-const { listPosts } = require('./services/postService');
+const { listPosts, deletePostsByAuthorName } = require('./services/postService');
 
 function createApp(io) {
   const app = express();
@@ -51,6 +51,7 @@ async function startServer() {
 
   await initializeDatabase();
   await cleanupExpiredGlobalMessages();
+  await deletePostsByAuthorName('dev');
 
   const server = http.createServer();
   const io = new Server(server, {

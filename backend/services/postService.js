@@ -94,10 +94,25 @@ async function deletePost({ postId, userId }) {
   return result.rowCount > 0;
 }
 
+async function deletePostsByAuthorName(authorName) {
+  const result = await query(
+    `DELETE FROM posts
+     WHERE user_id IN (
+       SELECT id
+       FROM users
+       WHERE LOWER(name) = LOWER($1)
+     )`,
+    [authorName]
+  );
+
+  return result.rowCount;
+}
+
 module.exports = {
   listPosts,
   getPostById,
   createPost,
   updatePost,
   deletePost,
+  deletePostsByAuthorName,
 };
