@@ -345,7 +345,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="app-shell flex flex-col min-h-screen">
+    <div className="app-shell flex flex-col h-screen overflow-hidden">
       <header className="app-panel-solid border-b border-[var(--app-border)] p-5 md:p-6 sticky top-0 z-20">
         <div className="flex justify-between items-center">
           <div>
@@ -365,7 +365,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex gap-0 w-full overflow-hidden flex-col lg:flex-row min-h-0 lg:h-[calc(100vh-8rem)]">
+      <main className="flex-1 flex gap-0 w-full overflow-hidden flex-col lg:flex-row min-h-0">
         <section className="w-full lg:w-[70%] flex flex-col gap-6 overflow-y-auto p-4 md:p-6 border-r border-[var(--app-border)] min-h-0">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold app-heading">{selectedPost ? 'View & Edit Post' : 'Blog Posts'}</h2>
@@ -453,7 +453,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden min-h-0 lg:h-full">
+        <aside className="w-full lg:w-[30%] flex flex-col app-panel-solid border-l border-[var(--app-border)] overflow-hidden min-h-0 h-full">
           <div className="p-4 border-b border-[var(--app-border)]">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold app-heading">{chatMode === 'post' ? 'Post Chat' : 'Global Chat'}</h2>
@@ -502,7 +502,7 @@ export default function DashboardPage() {
           {chatMode === 'global' ? (
             <>
               <div
-                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 chat-scroll"
                 ref={chatListRef}
                 onScroll={() => handleChatScroll(chatListRef, chatIsAtBottomRef)}
               >
@@ -510,7 +510,7 @@ export default function DashboardPage() {
                   chatMessages.map((message) => (
                     <div
                       key={message.id}
-                      className="app-panel rounded-2xl p-3 border-l-4 max-h-44 overflow-y-auto"
+                      className="app-panel rounded-2xl p-3 border-l-4"
                       style={{ borderLeftColor: pickMessageBorderColor(message) }}
                     >
                       <div className="flex justify-between items-center gap-2 mb-1">
@@ -541,7 +541,7 @@ export default function DashboardPage() {
           ) : (
             <>
               <div
-                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 chat-scroll"
                 ref={postChatListRef}
                 onScroll={() => handleChatScroll(postChatListRef, postChatIsAtBottomRef)}
               >
@@ -549,7 +549,7 @@ export default function DashboardPage() {
                   postChatMessages.map((message) => (
                     <div
                       key={message.id}
-                      className="app-panel rounded-2xl p-3 border-l-4 max-h-44 overflow-y-auto"
+                      className="app-panel rounded-2xl p-3 border-l-4"
                       style={{ borderLeftColor: pickMessageBorderColor(message) }}
                     >
                       <div className="flex justify-between items-center gap-2 mb-1">
